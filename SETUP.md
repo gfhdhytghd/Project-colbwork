@@ -41,6 +41,8 @@ pnpm install
 
 ## 3. Provision PostgreSQL
 
+### Option A: Native service
+
 Create a database + user (you can reuse the default `postgres` superuser during development):
 
 ```bash
@@ -59,6 +61,29 @@ Enable remote access if the API/web apps run on separate hosts:
    host all all 0.0.0.0/0 scram-sha-256
    ```
 3. Restart PostgreSQL: `sudo systemctl restart postgresql`.
+
+### Option B: Docker container
+
+If you prefer running PostgreSQL via Docker (common in CI or developer laptops):
+
+```bash
+docker run -d --name hybrid-postgres \
+  -e POSTGRES_DB=hybrid \
+  -e POSTGRES_USER=hybrid \
+  -e POSTGRES_PASSWORD=hybrid \
+  -p 5432:5432 \
+  postgres:15
+```
+
+> Adjust the port mapping if 5432 is already in use. For production, attach a named volume to persist data (e.g., `-v hybrid_pg:/var/lib/postgresql/data`).
+
+Redis can also run inside Docker:
+
+```bash
+docker run -d --name hybrid-redis -p 6379:6379 redis:7
+```
+
+Once the containers are up, use `DATABASE_URL=postgresql://hybrid:hybrid@localhost:5432/hybrid` and `REDIS_URL=redis://localhost:6379`.
 
 ## 4. Configure environment variables
 
