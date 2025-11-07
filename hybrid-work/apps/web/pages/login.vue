@@ -23,7 +23,7 @@ async function handleSubmit() {
     }
     await router.push('/chat');
   } catch {
-    error.value = '账号或密码错误';
+    error.value = 'Invalid username or password';
   } finally {
     isSubmitting.value = false;
   }
@@ -34,12 +34,12 @@ async function handleSubmit() {
   <div class="min-h-screen flex items-center justify-center bg-gray-50 px-4">
     <form class="w-full max-w-sm rounded-lg bg-white p-8 shadow" @submit.prevent="handleSubmit">
       <div class="mb-6 text-center">
-        <h1 class="text-2xl font-semibold text-gray-900">Hybrid Work 登录</h1>
-        <p class="text-sm text-gray-500 mt-1">请输入管理员账号以管理用户，或使用普通账号进入应用。</p>
+        <h1 class="text-2xl font-semibold text-gray-900">Hybrid Work Login</h1>
+        <p class="text-sm text-gray-500 mt-1">Sign in with the admin account to manage users, or use a member account for the workspace.</p>
       </div>
 
       <label class="flex flex-col gap-2 text-sm font-medium text-gray-700">
-        账号
+        Username
         <input
           v-model="form.username"
           type="text"
@@ -50,7 +50,7 @@ async function handleSubmit() {
       </label>
 
       <label class="mt-4 flex flex-col gap-2 text-sm font-medium text-gray-700">
-        密码
+        Password
         <input
           v-model="form.password"
           type="password"
@@ -69,7 +69,7 @@ async function handleSubmit() {
         type="submit"
         :disabled="isSubmitting"
       >
-        {{ isSubmitting ? '登录中...' : '登录' }}
+        {{ isSubmitting ? 'Signing in...' : 'Sign in' }}
       </button>
     </form>
   </div>

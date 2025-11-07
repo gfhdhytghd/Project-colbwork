@@ -1359,7 +1359,7 @@ const _uFEzHFJ_N47T8SZN297SmljaicTjUZcPxM56Q8qauNA = (function(nitro) {
 
 const rootDir = "/home/wilf/data/ED100PJ4/hybrid-work/apps/web";
 
-const appHead = {"meta":[{"name":"viewport","content":"width=device-width, initial-scale=1"},{"charset":"utf-8"}],"link":[],"style":[],"script":[],"noscript":[]};
+const appHead = {"meta":[{"name":"viewport","content":"width=device-width, initial-scale=1"},{"charset":"utf-8"}],"link":[],"style":[],"script":[],"noscript":[],"htmlAttrs":{"lang":"en"}};
 
 const appRootTag = "div";
 

@@ -83,7 +83,7 @@ async function submitUserForm() {
       await api.patch(`/admin/users/${editingUserId.value}`, updateBody);
     } else {
       if (!userForm.password.trim()) {
-        formError.value = '新建用户需要设置密码';
+    formError.value = 'Password is required when creating a user';
         return;
       }
       await api.post('/admin/users', { ...payload, password: userForm.password.trim() });
@@ -91,17 +91,17 @@ async function submitUserForm() {
     await fetchUsers();
     resetForm();
   } catch (error: any) {
-    formError.value = error?.response?.data?.message ?? '操作失败，请稍后再试';
+    formError.value = error?.response?.data?.message ?? 'Operation failed. Please try again later';
   }
 }
 
 async function deleteUser(userId: string) {
-  if (!confirm('确定要删除该用户吗？此操作无法撤销。')) return;
+  if (!confirm('Delete this user? This action cannot be undone.')) return;
   try {
     await api.delete(`/admin/users/${userId}`);
     await fetchUsers();
   } catch (error: any) {
-    formError.value = error?.response?.data?.message ?? '删除失败';
+    formError.value = error?.response?.data?.message ?? 'Failed to delete user';
   }
 }
 
@@ -113,11 +113,11 @@ async function updateAdminPassword() {
       currentPassword: adminPasswordForm.currentPassword,
       newPassword: adminPasswordForm.newPassword,
     });
-    adminPasswordMessage.value = '密码已更新';
+    adminPasswordMessage.value = 'Password updated';
     adminPasswordForm.currentPassword = '';
     adminPasswordForm.newPassword = '';
   } catch (error: any) {
-    adminPasswordError.value = error?.response?.data?.message ?? '密码更新失败';
+    adminPasswordError.value = error?.response?.data?.message ?? 'Failed to update password';
   }
 }
 
@@ -130,31 +130,31 @@ onMounted(fetchUsers);
       <section class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
         <div class="flex items-center justify-between">
           <div>
-            <h2 class="text-lg font-semibold text-gray-900">用户列表</h2>
-            <p class="text-sm text-gray-500">管理普通用户账号，管理员账号不会出现在列表中。</p>
+            <h2 class="text-lg font-semibold text-gray-900">Users</h2>
+            <p class="text-sm text-gray-500">Manage member accounts. Admin accounts are hidden from this list.</p>
           </div>
           <button
             class="text-sm text-emerald-600 hover:text-emerald-500"
             type="button"
             @click="resetForm"
           >
-            新建用户
+            New user
           </button>
         </div>
         <div class="mt-4 overflow-x-auto">
           <table class="min-w-full divide-y divide-gray-200 text-sm">
             <thead class="bg-gray-50">
               <tr>
-                <th class="px-3 py-2 text-left font-medium text-gray-500">姓名</th>
-                <th class="px-3 py-2 text-left font-medium text-gray-500">邮箱</th>
-                <th class="px-3 py-2 text-left font-medium text-gray-500">账号</th>
-                <th class="px-3 py-2 text-left font-medium text-gray-500">创建时间</th>
-                <th class="px-3 py-2 text-right font-medium text-gray-500">操作</th>
+                <th class="px-3 py-2 text-left font-medium text-gray-500">Name</th>
+                <th class="px-3 py-2 text-left font-medium text-gray-500">Email</th>
+                <th class="px-3 py-2 text-left font-medium text-gray-500">Username</th>
+                <th class="px-3 py-2 text-left font-medium text-gray-500">Created at</th>
+                <th class="px-3 py-2 text-right font-medium text-gray-500">Actions</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100 bg-white">
               <tr v-if="loadingUsers">
-                <td class="px-3 py-4 text-center text-gray-500" colspan="5">加载中...</td>
+                <td class="px-3 py-4 text-center text-gray-500" colspan="5">Loading...</td>
               </tr>
               <tr v-for="user in sortedUsers" v-else :key="user.id">
                 <td class="px-3 py-2 font-medium text-gray-900">{{ user.name }}</td>
@@ -164,12 +164,12 @@ onMounted(fetchUsers);
                   {{ new Date(user.createdAt).toLocaleString() }}
                 </td>
                 <td class="px-3 py-2 text-right">
-                  <button class="text-emerald-600 mr-3" type="button" @click="startEdit(user)">编辑</button>
-                  <button class="text-red-500" type="button" @click="deleteUser(user.id)">删除</button>
+                  <button class="text-emerald-600 mr-3" type="button" @click="startEdit(user)">Edit</button>
+                  <button class="text-red-500" type="button" @click="deleteUser(user.id)">Delete</button>
                 </td>
               </tr>
               <tr v-if="!loadingUsers && !sortedUsers.length">
-                <td class="px-3 py-4 text-center text-gray-500" colspan="5">暂无用户</td>
+                <td class="px-3 py-4 text-center text-gray-500" colspan="5">No users yet</td>
               </tr>
             </tbody>
           </table>
@@ -178,11 +178,11 @@ onMounted(fetchUsers);
 
       <section class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
         <h2 class="text-lg font-semibold text-gray-900">
-          {{ editingUserId ? '编辑用户' : '新建用户' }}
+          {{ editingUserId ? 'Edit user' : 'Create user' }}
         </h2>
         <form class="mt-4 grid gap-4 sm:grid-cols-2" @submit.prevent="submitUserForm">
           <label class="flex flex-col gap-1 text-sm text-gray-700">
-            姓名
+            Name
             <input
               v-model="userForm.name"
               required
@@ -190,7 +190,7 @@ onMounted(fetchUsers);
             />
           </label>
           <label class="flex flex-col gap-1 text-sm text-gray-700">
-            邮箱
+            Email
             <input
               v-model="userForm.email"
               type="email"
@@ -199,7 +199,7 @@ onMounted(fetchUsers);
             />
           </label>
           <label class="flex flex-col gap-1 text-sm text-gray-700">
-            登录账号
+            Username
             <input
               v-model="userForm.username"
               required
@@ -207,7 +207,7 @@ onMounted(fetchUsers);
             />
           </label>
           <label class="flex flex-col gap-1 text-sm text-gray-700">
-            {{ editingUserId ? '新密码（可选）' : '密码' }}
+            {{ editingUserId ? 'New password (optional)' : 'Password' }}
             <input
               v-model="userForm.password"
               :required="!editingUserId"
@@ -220,7 +220,7 @@ onMounted(fetchUsers);
               class="rounded bg-emerald-500 px-4 py-2 text-sm font-semibold text-emerald-950 hover:bg-emerald-400"
               type="submit"
             >
-              {{ editingUserId ? '保存' : '创建用户' }}
+              {{ editingUserId ? 'Save' : 'Create user' }}
             </button>
             <button
               v-if="editingUserId"
@@ -228,7 +228,7 @@ onMounted(fetchUsers);
               type="button"
               @click="resetForm"
             >
-              取消编辑
+              Cancel
             </button>
             <p v-if="formError" class="text-sm text-red-600">{{ formError }}</p>
           </div>
@@ -236,11 +236,11 @@ onMounted(fetchUsers);
       </section>
 
       <section class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-        <h2 class="text-lg font-semibold text-gray-900">管理员密码</h2>
-        <p class="text-sm text-gray-500">当前登录账号：{{ session.me?.['username'] }}</p>
+        <h2 class="text-lg font-semibold text-gray-900">Admin password</h2>
+        <p class="text-sm text-gray-500">Signed in as: {{ session.me?.['username'] }}</p>
         <form class="mt-4 grid gap-4 sm:grid-cols-2" @submit.prevent="updateAdminPassword">
           <label class="flex flex-col gap-1 text-sm text-gray-700">
-            当前密码
+            Current password
             <input
               v-model="adminPasswordForm.currentPassword"
               type="password"
@@ -249,7 +249,7 @@ onMounted(fetchUsers);
             />
           </label>
           <label class="flex flex-col gap-1 text-sm text-gray-700">
-            新密码
+            New password
             <input
               v-model="adminPasswordForm.newPassword"
               type="password"
@@ -263,7 +263,7 @@ onMounted(fetchUsers);
               class="rounded bg-emerald-500 px-4 py-2 text-sm font-semibold text-emerald-950 hover:bg-emerald-400"
               type="submit"
             >
-              更新密码
+              Update password
             </button>
             <p v-if="adminPasswordMessage" class="text-sm text-emerald-600">
               {{ adminPasswordMessage }}

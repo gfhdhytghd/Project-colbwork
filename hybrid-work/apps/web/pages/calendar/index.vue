@@ -142,6 +142,7 @@ const calendarKey = computed(() => `${session.me?.['id'] ?? 'anonymous'}-${selec
 
 const calendarOptions = computed(() => ({
   plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin],
+  locale: 'en',
   initialView: 'timeGridWeek',
   events: events.value,
   height: '100%',

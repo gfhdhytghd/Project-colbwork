@@ -13,7 +13,7 @@ const navLinks = [
 ];
 
 const isAdmin = computed(() => session.me && session.me['role'] === 'ADMIN');
-const displayName = computed(() => session.me?.['name'] ?? '用户');
+const displayName = computed(() => session.me?.['name'] ?? 'User');
 const displayEmail = computed(() => session.me?.['email'] ?? session.me?.['username'] ?? '');
 
 async function logout() {
@@ -44,7 +44,7 @@ async function logout() {
               type="button"
               @click="logout"
             >
-              退出
+              Logout
             </button>
           </div>
         </div>
