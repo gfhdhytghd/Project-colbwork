@@ -1,8 +1,22 @@
 import { PrismaClient } from '@prisma/client';
+import { hashPassword } from '../src/common/security/password.utils';
 
 const prisma = new PrismaClient();
 
 async function main() {
+  await prisma.user.upsert({
+    where: { username: 'admin' },
+    update: {},
+    create: {
+      orgId: 'acme',
+      name: 'Workspace Admin',
+      email: 'admin@acme.com',
+      username: 'admin',
+      role: 'ADMIN',
+      passwordHash: hashPassword('admin'),
+    },
+  });
+
   const alice = await prisma.user.upsert({
     where: { email: 'alice@acme.com' },
     update: {},
@@ -10,6 +24,8 @@ async function main() {
       orgId: 'acme',
       name: 'Alice Example',
       email: 'alice@acme.com',
+      username: 'alice',
+      passwordHash: hashPassword('password'),
     },
   });
 
@@ -20,6 +36,8 @@ async function main() {
       orgId: 'acme',
       name: 'Bob Example',
       email: 'bob@acme.com',
+      username: 'bob',
+      passwordHash: hashPassword('password'),
     },
   });
 

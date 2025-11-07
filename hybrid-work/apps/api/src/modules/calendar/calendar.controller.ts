@@ -2,7 +2,6 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req } from '@
 import { BlockKind, RequestStatus, Visibility } from '@prisma/client';
 import { IsDateString, IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
 import { CalendarService } from './calendar.service';
-import { UsersService } from '../users/users.service';
 import { Request } from 'express';
 
 class CreateEventDto {
@@ -98,16 +97,12 @@ class UpdateEventDto {
 
 @Controller('calendar')
 export class CalendarController {
-  constructor(
-    private readonly calendarService: CalendarService,
-    private readonly usersService: UsersService,
-  ) {}
+  constructor(private readonly calendarService: CalendarService) {}
 
-  private async resolveViewer(req: Request) {
-    const headerEmail = (req.headers['x-demo-user'] as string | undefined)?.toLowerCase();
-    const user = await this.usersService.ensureDemoUser(headerEmail);
-    if (!user) {
-      throw new Error('Unable to resolve viewer');
+  private resolveViewer(req: Request) {
+    const user = req['user'] as { id: string } | undefined;
+    if (!user?.id) {
+      throw new Error('Missing authenticated user');
     }
     return user;
   }
@@ -143,7 +138,7 @@ export class CalendarController {
     @Query('from') from?: string,
     @Query('to') to?: string,
   ) {
-    const viewer = await this.resolveViewer(req);
+    const viewer = this.resolveViewer(req);
     const ownerId = this.resolveOwnerId(owner, viewer.id);
     const events = await this.calendarService.eventsForUser(
       ownerId,
@@ -161,7 +156,7 @@ export class CalendarController {
     @Query('from') from?: string,
     @Query('to') to?: string,
   ) {
-    const viewer = await this.resolveViewer(req);
+    const viewer = this.resolveViewer(req);
     const ownerId = this.resolveOwnerId(owner, viewer.id);
     return this.calendarService.availabilityBlocks(
       ownerId,
@@ -172,7 +167,7 @@ export class CalendarController {
 
   @Post('events')
   async createEvent(@Req() req: Request, @Body() body: CreateEventDto) {
-    const viewer = await this.resolveViewer(req);
+    const viewer = this.resolveViewer(req);
     const ownerId = body.ownerId ?? viewer.id;
 
     if (ownerId !== viewer.id) {
@@ -193,7 +188,7 @@ export class CalendarController {
 
   @Post('blocks')
   async createBlock(@Req() req: Request, @Body() body: CreateBlockDto) {
-    const viewer = await this.resolveViewer(req);
+    const viewer = this.resolveViewer(req);
     const created = await this.calendarService.createAvailabilityBlock({
       ownerId: viewer.id,
       startsAt: new Date(body.startsAt),
@@ -207,13 +202,13 @@ export class CalendarController {
 
   @Get('requests')
   async listRequests(@Req() req: Request, @Query('scope') scope: 'incoming' | 'outgoing' = 'incoming') {
-    const viewer = await this.resolveViewer(req);
+    const viewer = this.resolveViewer(req);
     return this.calendarService.listScheduleRequests(viewer.id, scope);
   }
 
   @Post('requests')
   async createRequest(@Req() req: Request, @Body() body: CreateRequestDto) {
-    const viewer = await this.resolveViewer(req);
+    const viewer = this.resolveViewer(req);
     return this.calendarService.createScheduleRequest({
       requesterId: viewer.id,
       targetUserId: body.targetUserId,
@@ -234,13 +229,13 @@ export class CalendarController {
     @Param('id') id: string,
     @Body() body: UpdateRequestDto,
   ) {
-    const viewer = await this.resolveViewer(req);
+    const viewer = this.resolveViewer(req);
     return this.calendarService.updateScheduleRequestStatus(id, viewer.id, body.status);
   }
 
   @Get('active-blocks')
   async activeBlocks(@Req() req: Request, @Query('userIds') userIds?: string) {
-    const viewer = await this.resolveViewer(req);
+    const viewer = this.resolveViewer(req);
     const ids = (userIds || '')
       .split(',')
       .map((s) => s.trim())
@@ -254,7 +249,7 @@ export class CalendarController {
 
   @Patch('events/:id')
   async updateEvent(@Req() req: Request, @Param('id') id: string, @Body() body: UpdateEventDto) {
-    const viewer = await this.resolveViewer(req);
+    const viewer = this.resolveViewer(req);
     const updated = await this.calendarService.updateEvent(id, viewer.id, {
       title: body.title,
       startsAt: body.startsAt ? new Date(body.startsAt) : undefined,
@@ -267,7 +262,7 @@ export class CalendarController {
 
   @Delete('events/:id')
   async deleteEvent(@Req() req: Request, @Param('id') id: string) {
-    const viewer = await this.resolveViewer(req);
+    const viewer = this.resolveViewer(req);
     return this.calendarService.deleteEvent(id, viewer.id);
   }
 }

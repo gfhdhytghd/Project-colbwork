@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, Req } from '@nestjs/common';
 import { PresenceService } from './presence.service';
+import { Request } from 'express';
 
 class PresenceDto {
   status?: string;
@@ -12,8 +13,12 @@ export class PresenceController {
   constructor(private readonly presenceService: PresenceService) {}
 
   @Post()
-  update(@Body() body: PresenceDto) {
-    const userId = 'placeholder-user';
+  update(@Req() req: Request, @Body() body: PresenceDto) {
+    const user = req['user'] as { id: string } | undefined;
+    if (!user?.id) {
+      throw new Error('Missing authenticated user');
+    }
+    const userId = user.id;
     return this.presenceService.upsertPresence(userId, {
       status: body.status ?? 'ONLINE',
       location: body.location ?? 'REMOTE',

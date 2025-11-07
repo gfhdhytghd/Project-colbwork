@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
+import { useRouter } from '#imports';
 import { useApi } from '~/utils/api';
+import { useSession } from '~/stores/session';
 
 interface UserSummary {
   id: string;
@@ -25,6 +27,7 @@ interface Desk {
 }
 
 const api = useApi();
+const session = useSession();
 const desks = ref<Desk[]>([]);
 const isLoading = ref(true);
 const loadError = ref<string | null>(null);
@@ -34,7 +37,6 @@ const isReserving = ref(false);
 const isCancelling = ref(false);
 const actionError = ref<string | null>(null);
 const actionSuccess = ref<string | null>(null);
-const demoUserEmail = useState('demoUserEmail', () => 'alice@acme.com');
 const selectedOccupant = computed<UserSummary | null>(() =>
   selectedDesk.value ? occupantOf(selectedDesk.value) : null
 );
@@ -61,9 +63,13 @@ async function loadDesks() {
 }
 
 function computeMyReservation() {
-  const me = demoUserEmail.value;
+  const me = session.me?.['id'];
+  if (!me) {
+    myReservation.value = null;
+    return;
+  }
   for (const d of desks.value) {
-    const r = (d.reservations || []).find((res) => res.status === 'ACTIVE' && res.user?.email === me);
+    const r = (d.reservations || []).find((res) => res.status === 'ACTIVE' && res.user?.id === me);
     if (r) {
       myReservation.value = r;
       return;
@@ -122,7 +128,14 @@ async function messageUser(userId: string) {
 }
 
 onMounted(loadDesks);
-watch(demoUserEmail, loadDesks);
+watch(
+  () => session.me?.['id'],
+  async (next, prev) => {
+    if (next && next !== prev) {
+      await loadDesks();
+    }
+  },
+);
 </script>
 
 <template>

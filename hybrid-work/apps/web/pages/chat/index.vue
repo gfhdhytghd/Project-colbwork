@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRouter, useRoute } from '#imports';
 import { useApi } from '~/utils/api';
+import { useSession } from '~/stores/session';
 
 interface ThreadParticipant {
   user: {
@@ -64,7 +65,7 @@ interface ScheduleRequestDTO {
 const api = useApi();
 const router = useRouter();
 const route = useRoute();
-const demoUserEmail = useState('demoUserEmail', () => 'alice@acme.com');
+const session = useSession();
 
 const threads = ref<ThreadSummary[]>([]);
 const messages = ref<ThreadMessage[]>([]);
@@ -78,9 +79,11 @@ const activeBlocks = ref<Record<string, { kind: 'REST' | 'FOCUS' | 'OOO' }>>({})
 const presenceByUser = ref<Record<string, { location: 'OFFICE' | 'REMOTE'; deskLabel?: string }>>({});
 const requestsById = ref<Record<string, ScheduleRequestDTO>>({});
 
-const currentUser = computed(() =>
-  colleagues.value.find((user) => user.email === demoUserEmail.value) ?? colleagues.value[0] ?? null,
-);
+const currentUser = computed(() => {
+  if (!session.me) return null;
+  const match = colleagues.value.find((user) => user.id === session.me?.['id']);
+  return match ?? (session.me as UserSummary);
+});
 
 const currentThread = computed(() =>
   threads.value.find((thread) => thread.id === selectedThreadId.value) ?? null,
@@ -95,9 +98,10 @@ const statusLabel = (kind: 'REST' | 'FOCUS' | 'OOO') => (kind === 'REST' ? 'Rest
 
 const threadTitle = (thread: ThreadSummary) => {
   if (thread.type === 'GROUP') return 'Group conversation';
+  const viewerEmail = session.me?.['email'];
   const others = thread.participants
     .map((participant) => participant.user)
-    .filter((participant) => participant.email !== demoUserEmail.value);
+    .filter((participant) => !viewerEmail || participant.email !== viewerEmail);
   return others.length ? others.map((participant) => participant.name).join(', ') : 'Direct message';
 };
 
@@ -269,14 +273,18 @@ watch(selectedThreadId, async (next, prev) => {
   if (next && next !== prev) await ensureMessages();
 });
 
-watch(demoUserEmail, async () => {
-  threads.value = [];
-  messages.value = [];
-  selectedThreadId.value = null;
-  await loadUsers();
-  await loadThreads();
-  await ensureMessages();
-});
+watch(
+  () => session.me?.['id'],
+  async (next, prev) => {
+    if (!next || next === prev) return;
+    threads.value = [];
+    messages.value = [];
+    selectedThreadId.value = null;
+    await loadUsers();
+    await loadThreads();
+    await ensureMessages();
+  },
+);
 </script>
 
 <template>

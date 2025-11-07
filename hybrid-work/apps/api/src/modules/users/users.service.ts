@@ -1,25 +1,19 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Role } from '@prisma/client';
 import { PrismaService } from '../../config/prisma.service';
-
-const DEMO_USERS = [
-  {
-    email: 'alice@acme.com',
-    name: 'Alice Example',
-  },
-  {
-    email: 'bob@acme.com',
-    name: 'Bob Example',
-  },
-];
+import { hashPassword } from '../../common/security/password.utils';
 
 @Injectable()
-export class UsersService {
+export class UsersService implements OnModuleInit {
   constructor(private readonly prisma: PrismaService) {}
+
+  async onModuleInit() {
+    await this.ensureAdminAccount();
+  }
 
   findAll() {
     return this.prisma.user.findMany({
       orderBy: { createdAt: 'desc' },
-      take: 50,
     });
   }
 
@@ -27,32 +21,84 @@ export class UsersService {
     return this.prisma.user.findUnique({ where: { id } });
   }
 
+  findById(id: string) {
+    return this.prisma.user.findUnique({ where: { id } });
+  }
+
   findByEmail(email: string) {
     return this.prisma.user.findUnique({ where: { email } });
   }
 
-  async ensureUserByEmail(email: string) {
-    const defaultData = DEMO_USERS.find((user) => user.email === email) ?? {
-      email,
-      name: email.split('@')[0] ?? 'User',
-    };
-
-    await this.prisma.user.upsert({
-      where: { email },
-      update: {},
-      create: {
-        orgId: 'acme',
-        name: defaultData.name,
-        email: defaultData.email,
-      },
-    });
-
-    return this.findByEmail(email);
+  findByUsername(username: string) {
+    return this.prisma.user.findUnique({ where: { username } });
   }
 
-  async ensureDemoUser(email?: string | null) {
-    await Promise.all(DEMO_USERS.map((user) => this.ensureUserByEmail(user.email)));
-    const targetEmail = email ?? DEMO_USERS[0].email;
-    return this.ensureUserByEmail(targetEmail);
+  async createUser(input: {
+    orgId?: string;
+    name: string;
+    email: string;
+    username: string;
+    password: string;
+    role?: Role;
+  }) {
+    const passwordHash = hashPassword(input.password);
+    return this.prisma.user.create({
+      data: {
+        orgId: input.orgId ?? 'acme',
+        name: input.name,
+        email: input.email.toLowerCase(),
+        username: input.username.toLowerCase(),
+        passwordHash,
+        role: input.role ?? Role.MEMBER,
+      },
+    });
+  }
+
+  async updateUser(
+    id: string,
+    input: Partial<{
+      name: string;
+      email: string;
+      username: string;
+      role: Role;
+      tz: string;
+    }>,
+  ) {
+    return this.prisma.user.update({
+      where: { id },
+      data: {
+        ...input,
+        email: input.email ? input.email.toLowerCase() : undefined,
+        username: input.username ? input.username.toLowerCase() : undefined,
+      },
+    });
+  }
+
+  async updatePassword(id: string, password: string) {
+    const passwordHash = hashPassword(password);
+    return this.prisma.user.update({
+      where: { id },
+      data: { passwordHash },
+    });
+  }
+
+  deleteUser(id: string) {
+    return this.prisma.user.delete({ where: { id } });
+  }
+
+  private async ensureAdminAccount() {
+    const existing = await this.prisma.user.findFirst({
+      where: { username: 'admin' },
+    });
+    if (!existing) {
+      await this.createUser({
+        name: 'Workspace Admin',
+        email: 'admin@acme.com',
+        username: 'admin',
+        password: 'admin',
+        role: Role.ADMIN,
+        orgId: 'acme',
+      });
+    }
   }
 }

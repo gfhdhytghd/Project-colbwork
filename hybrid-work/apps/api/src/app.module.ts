@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import configuration from './config/configuration';
 import { AppController } from './app.controller';
@@ -10,6 +11,8 @@ import { ImModule } from './modules/im/im.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { PresenceModule } from './modules/presence/presence.module';
 import { UsersModule } from './modules/users/users.module';
+import { JwtAuthGuard } from './modules/auth/jwt-auth.guard';
+import { RolesGuard } from './modules/auth/roles.guard';
 
 @Module({
   imports: [
@@ -27,5 +30,15 @@ import { UsersModule } from './modules/users/users.module';
     NotificationsModule,
   ],
   controllers: [AppController],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: RolesGuard,
+    },
+  ],
 })
 export class AppModule {}

@@ -58,6 +58,8 @@ model User {
   orgId     String
   name      String
   email     String   @unique
+  username  String   @unique
+  passwordHash String
   avatarUrl String?
   tz        String   @default("America/New_York")
   role      Role     @default(MEMBER)

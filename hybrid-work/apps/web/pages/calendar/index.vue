@@ -8,6 +8,7 @@ import timeGridPlugin from '@fullcalendar/timegrid';
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute } from '#imports';
 import { useApi } from '~/utils/api';
+import { useSession } from '~/stores/session';
 
 type VisibilityOption = 'PUBLIC' | 'FREEBUSY' | 'PRIVATE';
 type BlockKindOption = 'REST' | 'FOCUS' | 'OOO';
@@ -49,7 +50,7 @@ type ScheduleRequest = {
 };
 
 const api = useApi();
-const demoUserEmail = useState('demoUserEmail', () => 'alice@acme.com');
+const session = useSession();
 
 const colleagues = ref<UserSummary[]>([]);
 const selectedOwner = ref<'me' | string>('me');
@@ -119,9 +120,11 @@ const blockLabels: Record<BlockKindOption, string> = {
   OOO: 'Out of office',
 };
 
-const currentUser = computed(() =>
-  colleagues.value.find((user) => user.email === demoUserEmail.value) ?? colleagues.value[0] ?? null,
-);
+const currentUser = computed(() => {
+  if (!session.me) return null;
+  const match = colleagues.value.find((user) => user.id === session.me?.['id']);
+  return match ?? (session.me as UserSummary);
+});
 
 const ownerOptions = computed(() => [
   { label: 'Me', value: 'me' },
@@ -135,7 +138,7 @@ const selectedOwnerUser = computed(() => {
   return colleagues.value.find((user) => user.id === selectedOwner.value) ?? null;
 });
 
-const calendarKey = computed(() => `${demoUserEmail.value}-${selectedOwner.value}`);
+const calendarKey = computed(() => `${session.me?.['id'] ?? 'anonymous'}-${selectedOwner.value}`);
 
 const calendarOptions = computed(() => ({
   plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin],
@@ -371,15 +374,19 @@ watch(calendarRange, async (next) => {
   }
 });
 
-watch(demoUserEmail, async () => {
-  selectedOwner.value = 'me';
-  await loadUsers();
-  await loadRequests();
-  await refreshEvents();
-  selectedEvent.value = null;
-  eventError.value = null;
-  eventSuccess.value = null;
-});
+watch(
+  () => session.me?.['id'],
+  async (next, prev) => {
+    if (!next || next === prev) return;
+    selectedOwner.value = 'me';
+    await loadUsers();
+    await loadRequests();
+    await refreshEvents();
+    selectedEvent.value = null;
+    eventError.value = null;
+    eventSuccess.value = null;
+  },
+);
 
 function isoToInput(value?: string | null) {
   if (!value) return '';
