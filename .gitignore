@@ -1,0 +1,11 @@
+# Local databases / caches
+pgdata/
+.pnpm-store/
+
+# Editor/OS artifacts
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+hybrid-work/apps/web/.nuxt/
