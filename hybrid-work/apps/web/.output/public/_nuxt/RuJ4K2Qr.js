@@ -1,0 +1,1 @@
+import{g as s,c as a,a as t,o}from"./Qy2zR8tU.js";const n={class:"p-8"},i=s({__name:"health",setup(c){return(l,e)=>(o(),a("div",n,[...e[0]||(e[0]=[t("h1",{class:"text-2xl font-semibold"},"Web Health",-1),t("p",{class:"mt-2 text-slate-400"},"If you can see this, pages routing is active.",-1)])]))}});export{i as default};

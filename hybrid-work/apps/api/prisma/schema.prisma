@@ -1,0 +1,205 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  MEMBER
+  ADMIN
+}
+
+enum ThreadType {
+  DM
+  GROUP
+}
+
+enum Visibility {
+  PRIVATE
+  FREEBUSY
+  PUBLIC
+}
+
+enum BlockKind {
+  REST
+  FOCUS
+  OOO
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  DECLINED
+  EXPIRED
+}
+
+enum ReservationStatus {
+  ACTIVE
+  CANCELLED
+}
+
+enum PresenceStatus {
+  ONLINE
+  AWAY
+  DND
+  OFFLINE
+}
+
+enum WorkLocation {
+  OFFICE
+  REMOTE
+}
+
+model User {
+  id        String   @id @default(uuid())
+  orgId     String
+  name      String
+  email     String   @unique
+  avatarUrl String?
+  tz        String   @default("America/New_York")
+  role      Role     @default(MEMBER)
+
+  threads   ThreadParticipant[]
+  messages  Message[]
+  events    CalendarEvent[]       @relation("OwnerEvents")
+  blocks    AvailabilityBlock[]
+  requestsMade   ScheduleRequest[] @relation("RequestsMade")
+  requestsRecv   ScheduleRequest[] @relation("RequestsRecv")
+
+  reservations DeskReservation[]
+  presence     Presence?
+  notifications Notification[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Thread {
+  id        String @id @default(uuid())
+  type      ThreadType
+  createdBy String
+  participants ThreadParticipant[]
+  messages  Message[]
+  createdAt DateTime @default(now())
+}
+
+model ThreadParticipant {
+  id       String @id @default(uuid())
+  threadId String
+  userId   String
+  thread   Thread @relation(fields: [threadId], references: [id])
+  user     User   @relation(fields: [userId], references: [id])
+
+  @@unique([threadId, userId])
+}
+
+model Message {
+  id        String   @id @default(uuid())
+  threadId  String
+  senderId  String
+  body      String
+  attachments Json?
+  createdAt DateTime @default(now())
+
+  thread Thread @relation(fields: [threadId], references: [id])
+  sender User   @relation(fields: [senderId], references: [id])
+
+  @@index([threadId, createdAt])
+}
+
+model CalendarEvent {
+  id         String   @id @default(uuid())
+  ownerId    String
+  title      String
+  startsAt   DateTime
+  endsAt     DateTime
+  location   String?
+  visibility Visibility @default(FREEBUSY)
+  createdBy  String?
+  source     String    @default("local")
+  externalId String?   @unique
+
+  owner User @relation("OwnerEvents", fields: [ownerId], references: [id])
+
+  @@index([ownerId, startsAt, endsAt])
+}
+
+model AvailabilityBlock {
+  id       String   @id @default(uuid())
+  ownerId  String
+  startsAt DateTime
+  endsAt   DateTime
+  kind     BlockKind
+  visibility Visibility @default(FREEBUSY)
+  owner    User     @relation(fields: [ownerId], references: [id])
+
+  @@index([ownerId, startsAt, endsAt])
+}
+
+model ScheduleRequest {
+  id             String   @id @default(uuid())
+  requesterId    String
+  targetUserId   String
+  eventDraft     Json
+  status         RequestStatus @default(PENDING)
+  notes          String?
+  createdAt      DateTime @default(now())
+  decidedAt      DateTime?
+
+  requester  User @relation("RequestsMade", fields: [requesterId], references: [id])
+  targetUser User @relation("RequestsRecv", fields: [targetUserId], references: [id])
+}
+
+model Desk {
+  id        String @id @default(uuid())
+  floorId   String
+  label     String
+  x         Int
+  y         Int
+  meta      Json?
+  reservations DeskReservation[]
+  presence     Presence[]
+
+  @@unique([floorId, label])
+}
+
+model DeskReservation {
+  id      String  @id @default(uuid())
+  deskId  String
+  userId  String
+  startsAt DateTime
+  endsAt   DateTime
+  status   ReservationStatus @default(ACTIVE)
+
+  desk Desk @relation(fields: [deskId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([deskId, startsAt, endsAt])
+}
+
+model Presence {
+  userId   String @id
+  status   PresenceStatus @default(OFFLINE)
+  location WorkLocation    @default(REMOTE)
+  deskId   String?
+  lastSeen DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+  desk Desk? @relation(fields: [deskId], references: [id])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  type      String
+  payload   Json
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+}

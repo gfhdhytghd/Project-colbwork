@@ -1,0 +1,84 @@
+/* Minimal vendor CSS to make FullCalendar v6 ESM visually render */
+
+:root {
+  --fc-border-color: #e5e7eb; /* gray-200 */
+  --fc-bg: #ffffff;
+  --fc-event-bg: #10b981; /* emerald-500 */
+  --fc-event-text: #064e3b; /* emerald-900 */
+  --fc-text: #111827; /* gray-900 */
+  --fc-muted: #6b7280; /* gray-500 */
+}
+
+.fc {
+  color: var(--fc-text);
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, Noto Sans, Apple Color Emoji, Segoe UI Emoji;
+}
+
+.fc .fc-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: .75rem;
+}
+
+.fc .fc-toolbar-title {
+  font-weight: 600;
+}
+
+.fc .fc-button {
+  background: #ffffff;
+  color: var(--fc-text);
+  border: 1px solid var(--fc-border-color);
+  border-radius: .375rem;
+  padding: .25rem .5rem;
+}
+
+.fc .fc-button:hover { background: #f3f4f6; }
+
+.fc .fc-view-harness {
+  height: 100% !important;
+}
+
+.fc .fc-scrollgrid,
+.fc table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.fc .fc-col-header-cell,
+.fc .fc-daygrid-day,
+.fc .fc-timegrid-slot,
+.fc .fc-timegrid-axis {
+  border: 1px solid var(--fc-border-color);
+}
+
+.fc .fc-col-header-cell {
+  background: #f9fafb; /* gray-50 */
+  font-size: .75rem;
+  color: var(--fc-muted);
+}
+
+.fc .fc-daygrid-day-number,
+.fc .fc-timegrid-slot-label {
+  padding: .25rem .375rem;
+  color: var(--fc-muted);
+}
+
+.fc .fc-daygrid-day-bg,
+.fc .fc-timegrid-slots {
+  background: var(--fc-bg);
+}
+
+.fc .fc-daygrid-event,
+.fc .fc-timegrid-event {
+  background: var(--fc-event-bg);
+  color: var(--fc-event-text);
+  border-radius: .25rem;
+  padding: .125rem .25rem;
+}
+
+.fc .fc-timegrid-slot { height: 2.25rem; }
+
+.fc .fc-timegrid-axis-cushion { padding: .125rem .25rem; color: var(--fc-muted); }
+
+.fc .fc-day-today { background: rgba(16, 185, 129, 0.08); }

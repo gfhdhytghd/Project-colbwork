@@ -1,0 +1,9 @@
+{
+  "name": "@hybrid-work/ui",
+  "private": true,
+  "version": "0.0.1",
+  "main": "src/index.ts",
+  "dependencies": {
+    "vue": "^3.4.15"
+  }
+}

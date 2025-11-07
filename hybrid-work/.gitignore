@@ -1,0 +1,9 @@
+node_modules
+.pnp.cjs
+.env
+.DS_Store
+.nyc_output
+coverage
+*.log
+dist
+pnpm-lock.yaml
