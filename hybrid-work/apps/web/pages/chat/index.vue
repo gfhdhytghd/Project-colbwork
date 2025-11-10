@@ -62,6 +62,37 @@ interface ScheduleRequestDTO {
   decidedAt?: string | null;
 }
 
+interface CalendarEventSummary {
+  id: string;
+  title: string;
+  startsAt: string;
+  endsAt: string;
+  visibility: VisibilityOption;
+}
+
+interface AvailabilitySummary {
+  userId: string;
+  availableAt: string;
+}
+
+interface SchedulePreviewSegment {
+  id: string;
+  title: string;
+  left: number;
+  width: number;
+}
+
+interface SchedulePreviewDay {
+  date: string;
+  label: string;
+  segments: SchedulePreviewSegment[];
+}
+
+interface UserSchedulePreview {
+  weekKey: string;
+  days: SchedulePreviewDay[];
+}
+
 const api = useApi();
 const router = useRouter();
 const route = useRoute();
@@ -78,6 +109,25 @@ const loadingMessages = ref(false);
 const activeBlocks = ref<Record<string, { kind: 'REST' | 'FOCUS' | 'OOO' }>>({});
 const presenceByUser = ref<Record<string, { location: 'OFFICE' | 'REMOTE'; deskLabel?: string }>>({});
 const requestsById = ref<Record<string, ScheduleRequestDTO>>({});
+const nextAvailabilityByUser = ref<Record<string, string>>({});
+const weeklyScheduleByUser = ref<Record<string, UserSchedulePreview>>({});
+const schedulePreviewLoading = ref<Record<string, boolean>>({});
+const hoveredThreadId = ref<string | null>(null);
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const previewWeekStart = startOfWeek(new Date());
+const previewWeekEnd = new Date(previewWeekStart.getTime() + 7 * MS_PER_DAY);
+const previewWeekStartIso = previewWeekStart.toISOString();
+const previewWeekEndIso = previewWeekEnd.toISOString();
+const previewWeekKey = previewWeekStartIso.split('T')[0];
+const weekdayFormatter = new Intl.DateTimeFormat('en-US', { weekday: 'short' });
+const availabilityTimeFormatter = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' });
+const availabilityDateFormatter = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+});
 
 const currentUser = computed(() => {
   if (!session.me) return null;
@@ -88,6 +138,18 @@ const currentUser = computed(() => {
 const currentThread = computed(() =>
   threads.value.find((thread) => thread.id === selectedThreadId.value) ?? null,
 );
+
+const counterpartByThread = computed<Record<string, UserSummary>>(() => {
+  const map: Record<string, UserSummary> = {};
+  for (const thread of threads.value) {
+    if (thread.type !== 'DM') continue;
+    const counterpart = getThreadCounterpart(thread);
+    if (counterpart) {
+      map[thread.id] = counterpart;
+    }
+  }
+  return map;
+});
 
 const availableRecipients = computed(() =>
   colleagues.value.filter((user) => user.id !== currentUser.value?.id),
@@ -124,6 +186,88 @@ function formatDate(iso?: string | null) {
     hour: 'numeric',
     minute: '2-digit',
   }).format(new Date(iso));
+}
+
+function startOfWeek(date: Date) {
+  const clone = new Date(date);
+  const day = clone.getDay(); // 0 = Sunday
+  const diff = (day + 6) % 7; // convert to Monday-based week
+  clone.setHours(0, 0, 0, 0);
+  clone.setDate(clone.getDate() - diff);
+  return clone;
+}
+
+function collectCounterpartIds() {
+  const ids = new Set<string>();
+  for (const thread of threads.value) {
+    if (thread.type !== 'DM') continue;
+    for (const participant of thread.participants) {
+      const uid = participant.user.id;
+      if (uid && uid !== currentUser.value?.id) {
+        ids.add(uid);
+      }
+    }
+  }
+  return Array.from(ids);
+}
+
+const getThreadCounterpart = (thread: ThreadSummary) => {
+  if (thread.type !== 'DM') return null;
+  return (
+    thread.participants
+      .map((participant) => participant.user)
+      .find((user) => user.id !== currentUser.value?.id) ?? null
+  );
+};
+
+function formatAvailabilityLabel(iso?: string) {
+  if (!iso) return 'Checking availability…';
+  const target = new Date(iso);
+  const now = new Date();
+  if (target.getTime() <= now.getTime() + 2 * 60 * 1000) {
+    return 'Available now';
+  }
+  const todayLabel = now.toDateString();
+  const tomorrow = new Date(now);
+  tomorrow.setDate(now.getDate() + 1);
+  if (target.toDateString() === todayLabel) {
+    return `Today ${availabilityTimeFormatter.format(target)}`;
+  }
+  if (target.toDateString() === tomorrow.toDateString()) {
+    return `Tomorrow ${availabilityTimeFormatter.format(target)}`;
+  }
+  return availabilityDateFormatter.format(target);
+}
+
+function buildWeeklyPreview(events: CalendarEventSummary[], weekStartDate: Date): SchedulePreviewDay[] {
+  const base = weekStartDate.getTime();
+  return Array.from({ length: 7 }).map((_, index) => {
+    const dayStartMs = base + index * MS_PER_DAY;
+    const dayEndMs = dayStartMs + MS_PER_DAY;
+    const segments: SchedulePreviewSegment[] = [];
+    for (const event of events) {
+      const eventStartMs = new Date(event.startsAt).getTime();
+      const eventEndMs = new Date(event.endsAt).getTime();
+      const overlapStart = Math.max(eventStartMs, dayStartMs);
+      const overlapEnd = Math.min(eventEndMs, dayEndMs);
+      if (overlapEnd <= overlapStart) continue;
+      const startFraction = (overlapStart - dayStartMs) / MS_PER_DAY;
+      const durationFraction = (overlapEnd - overlapStart) / MS_PER_DAY;
+      segments.push({
+        id: `${event.id}-${index}-${overlapStart}`,
+        title: event.title || 'Busy',
+        left: Math.min(Math.max(startFraction * 100, 0), 100),
+        width: Math.min(Math.max(durationFraction * 100, 1.5), 100),
+      });
+    }
+    segments.sort((a, b) => a.left - b.left);
+    const dayStart = new Date(dayStartMs);
+    return {
+      date: dayStart.toISOString(),
+      label: weekdayFormatter.format(dayStart),
+      segments,
+    };
+  });
 }
 
 async function loadUsers() {
@@ -168,19 +312,12 @@ async function refreshRequestMap() {
 }
 
 async function refreshActiveBlocks() {
-  const others = new Set<string>();
-  for (const t of threads.value) {
-    if (t.type !== 'DM') continue;
-    for (const p of t.participants) {
-      const uid = p.user.id;
-      if (uid && uid !== currentUser.value?.id) others.add(uid);
-    }
-  }
-  if (!others.size) {
+  const others = collectCounterpartIds();
+  if (!others.length) {
     activeBlocks.value = {};
     return;
   }
-  const params = new URLSearchParams({ userIds: Array.from(others).join(',') });
+  const params = new URLSearchParams({ userIds: others.join(',') });
   const { data } = await api.get(`/calendar/active-blocks?${params.toString()}`);
   const map: Record<string, { kind: 'REST' | 'FOCUS' | 'OOO' }> = {};
   for (const b of data as any[]) map[b.ownerId] = { kind: b.kind };
@@ -188,19 +325,12 @@ async function refreshActiveBlocks() {
 }
 
 async function refreshPresence() {
-  const others = new Set<string>();
-  for (const t of threads.value) {
-    if (t.type !== 'DM') continue;
-    for (const p of t.participants) {
-      const uid = p.user.id;
-      if (uid && uid !== currentUser.value?.id) others.add(uid);
-    }
-  }
-  if (!others.size) {
+  const others = collectCounterpartIds();
+  if (!others.length) {
     presenceByUser.value = {};
     return;
   }
-  const params = new URLSearchParams({ userIds: Array.from(others).join(',') });
+  const params = new URLSearchParams({ userIds: others.join(',') });
   const { data } = await api.get(`/presence/users?${params.toString()}`);
   const map: Record<string, { location: 'OFFICE' | 'REMOTE'; deskLabel?: string }> = {};
   for (const p of data as any[]) {
@@ -212,13 +342,65 @@ async function refreshPresence() {
   presenceByUser.value = map;
 }
 
+async function refreshNextAvailability() {
+  const others = collectCounterpartIds();
+  if (!others.length) {
+    nextAvailabilityByUser.value = {};
+    return;
+  }
+  const params = new URLSearchParams({ userIds: others.join(',') });
+  const { data } = await api.get(`/calendar/next-availability?${params.toString()}`);
+  const map: Record<string, string> = {};
+  for (const summary of data as AvailabilitySummary[]) {
+    map[summary.userId] = summary.availableAt;
+  }
+  nextAvailabilityByUser.value = map;
+}
+
+async function ensureWeeklyPreview(userId: string) {
+  const cached = weeklyScheduleByUser.value[userId];
+  if (cached && cached.weekKey === previewWeekKey) return;
+  schedulePreviewLoading.value = { ...schedulePreviewLoading.value, [userId]: true };
+  try {
+    const params = new URLSearchParams({
+      owner: userId,
+      from: previewWeekStartIso,
+      to: previewWeekEndIso,
+    });
+    const { data } = await api.get(`/calendar/events?${params.toString()}`);
+    const preview = buildWeeklyPreview(data as CalendarEventSummary[], new Date(previewWeekStart));
+    weeklyScheduleByUser.value = {
+      ...weeklyScheduleByUser.value,
+      [userId]: {
+        weekKey: previewWeekKey,
+        days: preview,
+      },
+    };
+  } finally {
+    schedulePreviewLoading.value = { ...schedulePreviewLoading.value, [userId]: false };
+  }
+}
+
+function handleThreadHover(thread: ThreadSummary) {
+  const counterpart = getThreadCounterpart(thread);
+  if (!counterpart) return;
+  hoveredThreadId.value = thread.id;
+  ensureWeeklyPreview(counterpart.id);
+}
+
+function handleThreadLeave(threadId: string) {
+  if (hoveredThreadId.value === threadId) {
+    hoveredThreadId.value = null;
+  }
+}
+
 async function ensureMessages() {
   if (!selectedThreadId.value) {
     messages.value = [];
     return;
   }
   await loadMessages(selectedThreadId.value);
-  await Promise.all([refreshRequestMap(), refreshActiveBlocks(), refreshPresence()]);
+  await Promise.all([refreshRequestMap(), refreshActiveBlocks(), refreshPresence(), refreshNextAvailability()]);
 }
 
 async function handleSend() {
@@ -265,6 +447,7 @@ onMounted(async () => {
   const iv = setInterval(() => {
     refreshActiveBlocks();
     refreshPresence();
+    refreshNextAvailability();
   }, 60000);
   onUnmounted(() => clearInterval(iv));
 });
@@ -280,6 +463,10 @@ watch(
     threads.value = [];
     messages.value = [];
     selectedThreadId.value = null;
+    nextAvailabilityByUser.value = {};
+    weeklyScheduleByUser.value = {};
+    schedulePreviewLoading.value = {};
+    hoveredThreadId.value = null;
     await loadUsers();
     await loadThreads();
     await ensureMessages();
@@ -296,37 +483,76 @@ watch(
       </div>
       <ul class="space-y-1 px-2">
         <li v-for="thread in threads" :key="thread.id">
-          <button
-            class="w-full rounded px-3 py-2 text-left text-sm text-gray-800 hover:bg-gray-100"
-            :class="{ 'bg-gray-100': thread.id === selectedThreadId }"
-            @click="selectedThreadId = thread.id"
-          >
-            <div class="flex flex-col">
-              <span class="font-medium text-gray-900">{{ threadTitle(thread) }}</span>
-              <span v-if="thread.type === 'DM'" class="text-[11px] text-gray-500">
-                <template v-for="participant in thread.participants" :key="participant.user.id">
-                  <template v-if="participant.user.id !== currentUser?.id">
-                    <template v-if="activeBlocks[participant.user.id]">
-                      <span>{{ statusIcon(activeBlocks[participant.user.id].kind) }} {{ statusLabel(activeBlocks[participant.user.id].kind) }}</span>
-                      <span> · </span>
+          <div class="relative" @mouseleave="handleThreadLeave(thread.id)">
+            <button
+              class="w-full rounded px-3 py-2 text-left text-sm text-gray-800 hover:bg-gray-100"
+              :class="{ 'bg-gray-100': thread.id === selectedThreadId }"
+              @click="selectedThreadId = thread.id"
+              @mouseenter="handleThreadHover(thread)"
+            >
+              <div class="flex flex-col">
+                <span class="font-medium text-gray-900">{{ threadTitle(thread) }}</span>
+                <span v-if="thread.type === 'DM'" class="text-[11px] text-gray-500">
+                  <template v-for="participant in thread.participants" :key="participant.user.id">
+                    <template v-if="participant.user.id !== currentUser?.id">
+                      <template v-if="activeBlocks[participant.user.id]">
+                        <span>{{ statusIcon(activeBlocks[participant.user.id].kind) }} {{ statusLabel(activeBlocks[participant.user.id].kind) }}</span>
+                        <span> · </span>
+                      </template>
+                      <span>
+                        at
+                        {{
+                          presenceByUser[participant.user.id]?.location === 'OFFICE' && presenceByUser[participant.user.id]?.deskLabel
+                            ? presenceByUser[participant.user.id]?.deskLabel
+                            : 'home'
+                        }}
+                      </span>
                     </template>
-                    <span>
-                      at
-                      {{
-                        presenceByUser[participant.user.id]?.location === 'OFFICE' && presenceByUser[participant.user.id]?.deskLabel
-                          ? presenceByUser[participant.user.id]?.deskLabel
-                          : 'home'
-                      }}
-                    </span>
                   </template>
-                </template>
-              </span>
-              <span class="truncate text-xs text-gray-500">
-                {{ thread.messages[0]?.sender?.name ?? 'No messages yet' }}
-                <template v-if="thread.messages[0]"> · {{ thread.messages[0]?.body }}</template>
-              </span>
+                </span>
+                <span v-if="thread.type === 'DM'" class="text-[11px] text-emerald-700">
+                  <template v-for="participant in thread.participants" :key="`availability-${participant.user.id}`">
+                    <template v-if="participant.user.id !== currentUser?.id">
+                      Next free: {{ formatAvailabilityLabel(nextAvailabilityByUser[participant.user.id]) }}
+                    </template>
+                  </template>
+                </span>
+                <span class="truncate text-xs text-gray-500">
+                  {{ thread.messages[0]?.sender?.name ?? 'No messages yet' }}
+                  <template v-if="thread.messages[0]"> · {{ thread.messages[0]?.body }}</template>
+                </span>
+              </div>
+            </button>
+            <div
+              v-if="thread.type === 'DM' && counterpartByThread[thread.id] && hoveredThreadId === thread.id"
+              class="absolute left-full top-2 z-20 ml-2 w-72 rounded border border-gray-200 bg-white p-3 text-xs shadow-lg"
+            >
+              <div class="mb-2 text-[10px] uppercase tracking-wide text-gray-500">This week</div>
+              <div v-if="schedulePreviewLoading[counterpartByThread[thread.id].id]" class="text-gray-400">Loading…</div>
+              <div v-else-if="weeklyScheduleByUser[counterpartByThread[thread.id].id]" class="space-y-1.5">
+                <div
+                  v-for="day in weeklyScheduleByUser[counterpartByThread[thread.id].id].days"
+                  :key="day.date"
+                  class="flex items-center gap-2"
+                >
+                  <span class="w-10 text-[10px] text-gray-500">{{ day.label }}</span>
+                  <div class="relative h-3 flex-1 rounded bg-gray-100">
+                    <template v-if="!day.segments.length">
+                      <span class="absolute inset-0 flex items-center justify-center text-[9px] text-gray-400">Free</span>
+                    </template>
+                    <span
+                      v-for="segment in day.segments"
+                      :key="segment.id"
+                      class="absolute h-3 rounded bg-emerald-400/80"
+                      :style="{ left: `${segment.left}%`, width: `${segment.width}%` }"
+                      :title="segment.title"
+                    ></span>
+                  </div>
+                </div>
+              </div>
+              <div v-else class="text-gray-400">Hover to load schedule</div>
             </div>
-          </button>
+          </div>
         </li>
       </ul>
 

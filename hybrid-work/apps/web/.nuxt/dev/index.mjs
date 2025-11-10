@@ -648,7 +648,7 @@ const _inlineRuntimeConfig = {
     }
   },
   "public": {
-    "apiBase": "http://10.169.199.240:3000"
+    "apiBase": "http://wilflin.com/edapi"
   }
 };
 const envOptions = {

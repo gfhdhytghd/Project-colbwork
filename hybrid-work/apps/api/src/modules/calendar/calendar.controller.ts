@@ -247,6 +247,28 @@ export class CalendarController {
     return blocks.filter((b) => b.ownerId === viewer.id || b.visibility !== 'PRIVATE');
   }
 
+  @Get('next-availability')
+  async nextAvailability(
+    @Req() req: Request,
+    @Query('userIds') userIds?: string,
+    @Query('horizonHours') horizonHours?: string,
+  ) {
+    this.resolveViewer(req);
+    const ids = (userIds || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    if (!ids.length) return [];
+
+    const now = new Date();
+    const parsedHours = Number(horizonHours);
+    const hours = Number.isFinite(parsedHours) ? parsedHours : 72;
+    const clampedHours = Math.min(Math.max(hours, 1), 24 * 14);
+    const horizon = new Date(now.getTime() + clampedHours * 60 * 60 * 1000);
+
+    return this.calendarService.nextAvailability(ids, now, horizon);
+  }
+
   @Patch('events/:id')
   async updateEvent(@Req() req: Request, @Param('id') id: string, @Body() body: UpdateEventDto) {
     const viewer = this.resolveViewer(req);

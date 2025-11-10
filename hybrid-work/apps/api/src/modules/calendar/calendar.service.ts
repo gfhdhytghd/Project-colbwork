@@ -203,6 +203,75 @@ export class CalendarService {
     });
   }
 
+  async nextAvailability(userIds: string[], now: Date, horizon: Date) {
+    if (!userIds.length) return [];
+    const clampedHorizon = horizon.getTime() <= now.getTime() ? new Date(now.getTime() + 60 * 60 * 1000) : horizon;
+    const [events, blocks] = await Promise.all([
+      this.prisma.calendarEvent.findMany({
+        where: {
+          ownerId: { in: userIds },
+          endsAt: { gte: now },
+          startsAt: { lte: clampedHorizon },
+        },
+        select: {
+          ownerId: true,
+          startsAt: true,
+          endsAt: true,
+        },
+        orderBy: { startsAt: 'asc' },
+      }),
+      this.prisma.availabilityBlock.findMany({
+        where: {
+          ownerId: { in: userIds },
+          endsAt: { gte: now },
+          startsAt: { lte: clampedHorizon },
+        },
+        select: {
+          ownerId: true,
+          startsAt: true,
+          endsAt: true,
+        },
+        orderBy: { startsAt: 'asc' },
+      }),
+    ]);
+
+    const intervalsByUser = new Map<string, { startsAt: Date; endsAt: Date }[]>();
+    for (const userId of userIds) {
+      intervalsByUser.set(userId, []);
+    }
+
+    for (const event of events) {
+      intervalsByUser.get(event.ownerId)?.push({ startsAt: event.startsAt, endsAt: event.endsAt });
+    }
+    for (const block of blocks) {
+      intervalsByUser.get(block.ownerId)?.push({ startsAt: block.startsAt, endsAt: block.endsAt });
+    }
+
+    const summaries: { userId: string; availableAt: Date }[] = [];
+    for (const userId of userIds) {
+      const intervals = intervalsByUser.get(userId) ?? [];
+      intervals.sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
+      let cursor = new Date(now);
+      for (const interval of intervals) {
+        if (interval.endsAt.getTime() <= cursor.getTime()) {
+          continue;
+        }
+        if (interval.startsAt.getTime() > cursor.getTime()) {
+          break;
+        }
+        if (interval.startsAt.getTime() <= cursor.getTime() && interval.endsAt.getTime() > cursor.getTime()) {
+          cursor = new Date(interval.endsAt);
+        }
+      }
+      summaries.push({ userId, availableAt: cursor });
+    }
+
+    return summaries.map((summary) => ({
+      userId: summary.userId,
+      availableAt: summary.availableAt.toISOString(),
+    }));
+  }
+
   async updateScheduleRequestStatus(id: string, actorId: string, status: RequestStatus) {
     return this.prisma.$transaction(async (tx) => {
       const existing = await tx.scheduleRequest.findUnique({
